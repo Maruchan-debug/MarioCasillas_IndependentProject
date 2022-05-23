@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine;
+using UnityEngine.UI;
 using Cinemachine; //Always Add when Using Cinemachine
+using UnityEngine.SceneManagement;
 
 public class ThirdPersonMovement : MonoBehaviour
 {
@@ -10,6 +12,10 @@ public class ThirdPersonMovement : MonoBehaviour
     public CharacterController controller;
     public Transform cam;
     public BoxCollider drownCollider;
+    public GameObject gameOverText;
+
+    //Firing Parameters
+    public GameObject projectile;
 
     //Gravity Parameters
     public float speed = 6f;
@@ -48,17 +54,32 @@ public class ThirdPersonMovement : MonoBehaviour
     bool isGrounded;
     bool jumping;
     bool weaponActivated;
-    bool Dead;
+    bool playerIsDead;
 
     void Start()
     {
         animator = GetComponent<Animator>();
     }
 
+    void Awake()
+    {
+        GameManager.onGameStateChanged += GameManagerOnOnGameStateChanged;
+    }
+
+    void OnDestroy()
+    {
+        GameManager.onGameStateChanged -= GameManagerOnOnGameStateChanged;
+    }
+
+    //Selects between different States in the Game 
+    private void GameManagerOnOnGameStateChanged(GameState state)
+    {
+        gameOverText.SetActive(state == GameState.GameOver);
+    }
+
     // Update is called once per frame
     void Update()
     {
-
         Move(); //Move
 
         isJumping(); //Jump
@@ -73,6 +94,7 @@ public class ThirdPersonMovement : MonoBehaviour
             float horizontal = Input.GetAxisRaw("Horizontal");
             float vertical = Input.GetAxisRaw("Vertical");
             Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
+            Vector3 playerAim = direction;
 
             //Animation and Movement
             if (isGrounded)
@@ -101,6 +123,10 @@ public class ThirdPersonMovement : MonoBehaviour
                     else
                     {                                                  //If weapon not activted
                         ChangeAnimationState(Player_Rifle_Run_Forward);
+                        if (Input.GetMouseButtonDown(0))
+                        {
+                          Instantiate(projectile, playerAim, Quaternion.identity);
+                        }
                     }
                 }
                 else if (direction.magnitude <= 0f) //If not Moving
@@ -108,6 +134,11 @@ public class ThirdPersonMovement : MonoBehaviour
                     if (weaponActivated)
                     {
                         ChangeAnimationState(Player_Fire_Idle);
+                     if (Input.GetMouseButtonDown(0))
+                     {
+                        Instantiate(projectile, playerAim, Quaternion.identity);
+                     }
+    
                     }
                     else if (!weaponActivated)
                     {
@@ -154,12 +185,10 @@ public class ThirdPersonMovement : MonoBehaviour
     {
         if (Input.GetMouseButtonDown(1)) //Left Click Down 
         {
-            Debug.Log("Weapon Activated");
             weaponActivated = true;
         }
         if (Input.GetMouseButtonUp(1)) //Left Click Up
         {
-            Debug.Log("Weapon Deactivated");
             weaponActivated = false;
         }
     }
@@ -167,20 +196,39 @@ public class ThirdPersonMovement : MonoBehaviour
     //Checks for Player Death
     void Death()
     {
-        
-    }
-
-    private void OnTriggerEnter(Collider other)
-    {
-        if (other.gameObject.CompareTag("Water"))
+        if (playerIsDead)
         {
-            Debug.Log("Player Is Dead");
+            ChangeAnimationState(Player_Death);
+            KillAnimationStates();
+            GameManager.Instance.UpdateGameState(GameState.GameOver);
+            Debug.Log("Player is Dead");
         }
         else
         {
             Debug.Log("Player is Alive");
+            gameOverText.SetActive(false);
         }
+    }
 
+    
+    void OnTriggerEnter(Collider other)
+    {
+       if (other.gameObject.CompareTag("Water"))
+        { 
+            playerIsDead = true;
+        }
+        else
+        {
+            playerIsDead = false;
+        }
+    }
+
+    //Ends All of the Player Animations
+    void KillAnimationStates()
+    {
+        isGrounded = false;
+        jumping = false;
+        weaponActivated = false;
     }
 
     //Changes Animation 
